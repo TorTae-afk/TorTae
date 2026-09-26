@@ -1,0 +1,1454 @@
+local CORRECT_KEY = "TorTaeHod" -- ตั้งค่าคีย์ที่ต้องการตรงนี้
+
+local function InitKeySystem(onVerified)
+    local CoreGui = game:GetService("CoreGui")
+    local TweenService = game:GetService("TweenService")
+    
+    if CoreGui:FindFirstChild("KeySystemUI") then
+        CoreGui.KeySystemUI:Destroy()
+    end
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "KeySystemUI"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.Parent = CoreGui
+
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Size = UDim2.new(0, 320, 0, 180)
+    MainFrame.Position = UDim2.new(0.5, -160, 0.5, -90)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.ClipsDescendants = true
+    MainFrame.Parent = ScreenGui
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 10)
+    UICorner.Parent = MainFrame
+
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Color = Color3.fromRGB(60, 60, 60)
+    UIStroke.Thickness = 1
+    UIStroke.Parent = MainFrame
+
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 40)
+    Title.BackgroundTransparency = 1
+    Title.Text = "KEY SYSTEM"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 16
+    Title.Font = Enum.Font.GothamBold
+    Title.Parent = MainFrame
+
+    local KeyInput = Instance.new("TextBox")
+    KeyInput.Size = UDim2.new(0.85, 0, 0, 38)
+    KeyInput.Position = UDim2.new(0.075, 0, 0.3, 0)
+    KeyInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    KeyInput.PlaceholderText = "Enter Key Here..."
+    KeyInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 120)
+    KeyInput.Text = ""
+    KeyInput.TextSize = 14
+    KeyInput.Font = Enum.Font.Gotham
+    KeyInput.ClearTextOnFocus = false
+    KeyInput.Parent = MainFrame
+
+    local InputCorner = Instance.new("UICorner")
+    InputCorner.CornerRadius = UDim.new(0, 6)
+    InputCorner.Parent = KeyInput
+
+    local SubmitBtn = Instance.new("TextButton")
+    SubmitBtn.Size = UDim2.new(0.85, 0, 0, 38)
+    SubmitBtn.Position = UDim2.new(0.075, 0, 0.62, 0)
+    SubmitBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    SubmitBtn.Text = "VERIFY KEY"
+    SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SubmitBtn.TextSize = 14
+    SubmitBtn.Font = Enum.Font.GothamBold
+    SubmitBtn.Parent = MainFrame
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = SubmitBtn
+
+    SubmitBtn.MouseButton1Click:Connect(function()
+        if KeyInput.Text == CORRECT_KEY then
+            SubmitBtn.Text = "CORRECT KEY!"
+            SubmitBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+            
+            local tween = TweenService:Create(MainFrame, TweenInfo.new(0.3), {
+                Size = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.new(0.5, 0, 0.5, 0)
+            })
+            tween:Play()
+            tween.Completed:Wait()
+            
+            ScreenGui:Destroy()
+            
+            -- เรียกการทำงานของเมนูหลักเมื่อใส่คีย์ถูกต้องแล้วเท่านั้น
+            onVerified()
+        else
+            SubmitBtn.Text = "INCORRECT KEY!"
+            SubmitBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            task.wait(1.2)
+            SubmitBtn.Text = "VERIFY KEY"
+            SubmitBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+        end
+    end)
+end
+
+-- เรียกใช้ระบบ Key ก่อน
+InitKeySystem(function()
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ContentProvider = game:GetService("ContentProvider")
+
+-- 🔑 [[ ตั้งค่า KEY สำหรับเข้าใช้งานตรงนี้ ]]
+local CORRECT_KEY = "1" 
+local FILE_NAME = "AimbotConfig_PremiumV2.json" 
+
+-- ================================================================
+-- 👁️ VAL & DATA FOR ESP SYSTEMS
+-- ================================================================
+local PlayerESP_Enabled = true
+local ItemESP_Enabled = true
+
+local BillboardCache = {}            -- สำหรับ Player ESP (ชื่อ/เลือด)
+local ItemBillboardCache = {}        -- สำหรับ Item ESP (ไอคอนของ)
+local PlayerESP_UpdateConnections = {}
+local ItemESP_UpdateConnections = {}
+
+local WeaponDB = {}
+local PreloadedImages = {}
+
+local RARITY_COLORS = {
+    ["Common"] = Color3.fromRGB(255, 255, 255),
+    ["Uncommon"] = Color3.fromRGB(99, 255, 52),
+    ["Rare"] = Color3.fromRGB(51, 170, 255),
+    ["Epic"] = Color3.fromRGB(237, 44, 255),
+    ["Legendary"] = Color3.fromRGB(255, 150, 0),
+    ["Omega"] = Color3.fromRGB(255, 20, 51),
+}
+
+-- การเชื่อมต่อหลักภายนอกเพื่อใช้ตัดการทำงานเมื่อปิดโปรแกรม
+local GlobalConnections = {}
+
+-- ประกาศฟังก์ชันไว้ล่วงหน้าเพื่อให้เรียกใช้งานข้ามไปมาได้
+local createBillboardForPlayer
+local removeESPForPlayer
+local createItemBillboardForPlayer
+local removeItemESPForPlayer
+
+-- ================================================================
+-- 📦 WEAPON & ITEM DETECTION ENGINE
+-- ================================================================
+local function generateUniqueKey(tool)
+    if not tool or not tool:IsA("Tool") then return nil end
+    local itemId = tool:GetAttribute("ItemId") or tool:GetAttribute("Id")
+    if itemId and itemId ~= "" and (typeof(itemId) == "string" or typeof(itemId) == "number") then
+        return "ITEMID_" .. tostring(itemId)
+    end
+
+    local partsData = {}
+    for _, part in ipairs(tool:GetDescendants()) do
+        if part:IsA("SpecialMesh") and part.MeshId and part.MeshId ~= "" and part.MeshId ~= "rbxassetid://" then
+            table.insert(partsData, "MESH_"..part.MeshId.."|TEX_"..(part.TextureId or "NOTEX"))
+        elseif part:IsA("MeshPart") and part.MeshId and part.MeshId ~= "" and part.MeshId ~= "rbxassetid://" then
+            table.insert(partsData, "MESH_"..part.MeshId.."|TEX_"..(part.TextureID or "NOTEX"))
+        elseif part:IsA("Decal") and part.Texture and part.Texture ~= "" and part.Texture ~= "rbxassetid://" then
+            table.insert(partsData, "DECAL_"..part.Texture)
+        elseif part:IsA("Part") then
+            table.insert(partsData, "PART_"..part.Name.."_"..part.Size.X.."x"..part.Size.Y.."x"..part.Size.Z)
+        end
+    end
+
+    if #partsData > 0 then
+        table.sort(partsData)
+        return "MESHKEY_" .. table.concat(partsData, ";")
+    end
+
+    local displayName = tool:GetAttribute("DisplayName") or tool.Name
+    local toolName = tool.Name
+    local rarity = tool:GetAttribute("RarityName") or tool:GetAttribute("Rarity") or "Unknown"
+    local imageId = tool:GetAttribute("ImageId") or "NOIMAGE"
+    return "NAME_" .. displayName .. "_" .. toolName .. "_" .. rarity .. "_" .. imageId
+end
+
+local function registerItems(folder)
+    for _, tool in ipairs(folder:GetDescendants()) do
+        if not tool:IsA("Tool") then continue end
+        local key = generateUniqueKey(tool)
+        if not key then continue end
+
+        local displayName = tool:GetAttribute("DisplayName") or tool.Name
+        local imageId = tool:GetAttribute("ImageId") or "rbxassetid://7072725737"
+        local rarity = tool:GetAttribute("RarityName") or tool:GetAttribute("Rarity") or "Common"
+
+        WeaponDB[key] = {
+            Name = displayName,
+            Rarity = rarity,
+            ImageId = imageId,
+            ToolName = tool.Name,
+            Key = key
+        }
+
+        if imageId and imageId ~= "" and not PreloadedImages[imageId] then
+            PreloadedImages[imageId] = true
+            task.spawn(function()
+                pcall(function()
+                    ContentProvider:PreloadAsync({imageId})
+                end)
+            end)
+        end
+    end
+end
+
+-- สแกนหาไอเทมในคลังเกมต้นทาง
+pcall(function()
+    local itemsFolder = ReplicatedStorage:WaitForChild("Items", 5)
+    if itemsFolder then registerItems(itemsFolder) end
+    for _, obj in ipairs(ReplicatedStorage:GetChildren()) do
+        if obj:IsA("Folder") and (obj.Name:find("Weapon") or obj.Name:find("Item") or obj.Name:find("Tool")) then
+            registerItems(obj)
+        end
+    end
+    registerItems(game:GetService("StarterPack"))
+end)
+
+local function getWeaponInfo(tool)
+    if not tool or not tool:IsA("Tool") then return nil end
+    local key = generateUniqueKey(tool)
+    return WeaponDB[key]
+end
+
+-- ================================================================
+-- 🟥 FUNCTIONS FOR PLAYER ESP (กล่องแดง, ป้ายชื่อ, เลือด)
+-- ================================================================
+createBillboardForPlayer = function(player)
+    if player == LocalPlayer then return end
+    removeESPForPlayer(player)
+
+    local function setupESP(character)
+        local rootPart = character:WaitForChild("HumanoidRootPart", 5)
+        local humanoid = character:WaitForChild("Humanoid", 5)
+        if not rootPart or not humanoid then return end
+
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ESP_Highlight"
+        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+        highlight.FillTransparency = 0.85 
+        highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+        highlight.OutlineTransparency = 0
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop 
+        highlight.Adornee = character
+        highlight.Parent = character
+
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "ESP_Billboard"
+        billboard.Adornee = rootPart
+        billboard.Size = UDim2.new(0, 150, 0, 40)
+        billboard.StudsOffset = Vector3.new(0, 3.5, 0) 
+        billboard.AlwaysOnTop = true
+        billboard.Parent = rootPart
+
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        listLayout.Padding = UDim.new(0, 2)
+        listLayout.Parent = billboard
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 14)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nameLabel.TextStrokeTransparency = 0 
+        nameLabel.Font = Enum.Font.SourceSansBold
+        nameLabel.TextSize = 13
+        nameLabel.Parent = billboard
+
+        local healthBG = Instance.new("Frame")
+        healthBG.Size = UDim2.new(0, 80, 0, 5)
+        healthBG.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        healthBG.BorderSizePixel = 0
+        healthBG.Parent = billboard
+        Instance.new("UICorner", healthBG).CornerRadius = UDim.new(1, 0)
+
+        local healthBar = Instance.new("Frame")
+        healthBar.Size = UDim2.new(math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1), 0, 1, 0)
+        healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+        healthBar.BorderSizePixel = 0
+        healthBar.Parent = healthBG
+        Instance.new("UICorner", healthBar).CornerRadius = UDim.new(1, 0)
+
+        local hpChanged = humanoid.HealthChanged:Connect(function(health)
+            local pct = math.clamp(health / humanoid.MaxHealth, 0, 1)
+            TweenService:Create(healthBar, TweenInfo.new(0.1), {Size = UDim2.new(pct, 0, 1, 0)}):Play()
+            if pct < 0.3 then
+                healthBar.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+            else
+                healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+            end
+        end)
+
+        BillboardCache[player.UserId] = {
+            Character = character,
+            Connection = hpChanged
+        }
+    end
+
+    if player.Character then setupESP(player.Character) end
+    local charAdded = player.CharacterAdded:Connect(setupESP)
+    PlayerESP_UpdateConnections[player.UserId] = charAdded
+end
+
+removeESPForPlayer = function(player)
+    if player.Character then
+        local oldHighlight = player.Character:FindFirstChild("ESP_Highlight")
+        if oldHighlight then oldHighlight:Destroy() end
+        local root = player.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local oldBillboard = root:FindFirstChild("ESP_Billboard")
+            if oldBillboard then oldBillboard:Destroy() end
+        end
+    end
+    if BillboardCache[player.UserId] then
+        if BillboardCache[player.UserId].Connection then
+            BillboardCache[player.UserId].Connection:Disconnect()
+        end
+        BillboardCache[player.UserId] = nil
+    end
+    if PlayerESP_UpdateConnections[player.UserId] then
+        PlayerESP_UpdateConnections[player.UserId]:Disconnect()
+        PlayerESP_UpdateConnections[player.UserId] = nil
+    end
+end
+
+-- ================================================================
+-- 🟦 FUNCTIONS FOR ITEM ESP (ระบบมองของสวมใส่/ในกระเป๋า)
+-- ================================================================
+createItemBillboardForPlayer = function(player)
+    if player == LocalPlayer or ItemBillboardCache[player] then return end
+    
+    local billboard, container, layout
+    local connections = {}
+
+    local function updateESP()
+        if not ItemESP_Enabled or not billboard or not billboard.Parent then return end
+        
+        local currentTools = {}
+        local function scan(folder)
+            if not folder then return end
+            for _, tool in ipairs(folder:GetChildren()) do
+                if tool:IsA("Tool") and tool.Name ~= "Fists" then
+                    local info = getWeaponInfo(tool)
+                    if info then table.insert(currentTools, info) end
+                end
+            end
+        end
+
+        local char = player.Character
+        if char then
+            scan(char)
+            local backpack = player:FindFirstChild("Backpack")
+            if backpack then scan(backpack) end
+        end
+
+        container:ClearAllChildren()
+        layout = Instance.new("UIGridLayout")
+        layout.CellSize = UDim2.new(0, 35, 0, 35)
+        layout.CellPadding = UDim2.new(0, 6, 0, 0)
+        layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        layout.VerticalAlignment = Enum.VerticalAlignment.Center
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Parent = container
+
+        for i, info in ipairs(currentTools) do
+            local img = Instance.new("ImageLabel")
+            img.Parent = container
+            img.Size = UDim2.new(0, 35, 0, 35)
+            img.BackgroundTransparency = 1
+            img.Image = info.ImageId or "rbxassetid://7072725737"
+            img.ScaleType = Enum.ScaleType.Fit
+            img.LayoutOrder = i
+
+            local color = RARITY_COLORS[info.Rarity] or Color3.fromRGB(255, 255, 255)
+            img.ImageColor3 = color:Lerp(Color3.new(1,1,1), 0.35)
+        end
+    end
+
+    local function setupBillboard()
+        local char = player.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        if ItemBillboardCache[player] then ItemBillboardCache[player]:Destroy() end
+        for _, conn in pairs(connections) do if conn.Connected then conn:Disconnect() end end
+        connections = {}
+
+        billboard = Instance.new("BillboardGui")
+        billboard.Name = "ItemESP"
+        billboard.Adornee = hrp
+        billboard.Size = UDim2.new(0, 280, 0, 40)
+        billboard.StudsOffset = Vector3.new(0, -6.5, 0)
+        billboard.AlwaysOnTop = true
+        billboard.LightInfluence = 0
+        billboard.Parent = hrp
+
+        container = Instance.new("Frame", billboard)
+        container.Size = UDim2.new(1, 0, 1, 0)
+        container.BackgroundTransparency = 1
+
+        ItemBillboardCache[player] = billboard
+        updateESP()
+
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            table.insert(connections, backpack.ChildAdded:Connect(updateESP))
+            table.insert(connections, backpack.ChildRemoved:Connect(updateESP))
+        end
+
+        table.insert(connections, char.ChildAdded:Connect(function(child) if child:IsA("Tool") then task.defer(updateESP) end end))
+        table.insert(connections, char.ChildRemoved:Connect(function(child) if child:IsA("Tool") then task.defer(updateESP) end end))
+        
+        table.insert(connections, player.ChildAdded:Connect(function(child)
+            if child.Name == "Backpack" then
+                task.wait()
+                table.insert(connections, child.ChildAdded:Connect(updateESP))
+                table.insert(connections, child.ChildRemoved:Connect(updateESP))
+                updateESP()
+            end
+        end))
+    end
+
+    if player.Character then task.spawn(setupBillboard) end
+    table.insert(connections, player.CharacterAdded:Connect(function() task.wait(1) setupBillboard() end))
+    ItemESP_UpdateConnections[player] = connections
+end
+
+removeItemESPForPlayer = function(player)
+    if ItemBillboardCache[player] then
+        ItemBillboardCache[player]:Destroy()
+        ItemBillboardCache[player] = nil
+    end
+    if ItemESP_UpdateConnections[player] then
+        for _, conn in pairs(ItemESP_UpdateConnections[player]) do
+            if conn.Connected then conn:Disconnect() end
+        end
+        ItemESP_UpdateConnections[player] = nil
+    end
+end
+
+-- ================================================================
+-- 🟩 MAIN GUI & SCRIPT RUNTIME
+-- ================================================================
+local function StartAimbotScript()
+    local Mouse = LocalPlayer:GetMouse() 
+    local Camera = workspace.CurrentCamera
+    local UserInputService = game:GetService("UserInputService")
+
+    -- DEFAULT CONFIGURATION (Aimbot)
+    local SMOOTHNESS = 0.15
+    local FOV_RADIUS = 150    
+    local WallCheckEnabled = true 
+    local WhitelistedPlayers = {} 
+
+    local TOGGLE_GUI_KEY = Enum.KeyCode.Insert
+    -- Aim bind รองรับทั้งคีย์บอร์ดและเมาส์ (Left / Right / Middle)
+    local AIM_BIND = { Kind = "Key", Value = Enum.KeyCode.Z }
+    local AIM_MODE = "Toggle"
+
+    local isAimbotEnabled = true
+    local ScriptRunning = true
+
+    local MOUSE_BIND_NAMES = {
+        [Enum.UserInputType.MouseButton1] = "Mouse1",
+        [Enum.UserInputType.MouseButton2] = "Mouse2",
+        [Enum.UserInputType.MouseButton3] = "Mouse3",
+    }
+
+    local function getAimBindName()
+        if AIM_BIND.Kind == "Mouse" then
+            return MOUSE_BIND_NAMES[AIM_BIND.Value] or AIM_BIND.Value.Name
+        end
+        return AIM_BIND.Value.Name
+    end
+
+    local function isAimBindInput(input)
+        if AIM_BIND.Kind == "Mouse" then
+            return input.UserInputType == AIM_BIND.Value
+        end
+        return input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == AIM_BIND.Value
+    end
+
+    ----------------------------------------------------------------
+    -- 💾 SAVE / LOAD CONFIGURATIONS
+    ----------------------------------------------------------------
+    local function SaveConfig()
+        local config = {
+            Smoothness = SMOOTHNESS,
+            FovRadius = FOV_RADIUS,
+            WallCheck = WallCheckEnabled,
+            Whitelist = WhitelistedPlayers,
+            AimKey = getAimBindName(),
+            AimBindKind = AIM_BIND.Kind,
+            AimBindValue = AIM_BIND.Value.Name,
+            AimMode = AIM_MODE
+        }
+        local success, jsonStr = pcall(function() return HttpService:JSONEncode(config) end)
+        if success and writefile then
+            writefile(FILE_NAME, jsonStr)
+            return true
+        end
+        return false
+    end
+
+    local function LoadConfig()
+        if readfile and isfile and isfile(FILE_NAME) then
+            local success, jsonStr = pcall(function() return readfile(FILE_NAME) end)
+            if success and jsonStr then
+                local success2, config = pcall(function() return HttpService:JSONDecode(jsonStr) end)
+                if success2 and config then
+                    if config.Smoothness ~= nil then
+                        SMOOTHNESS = math.clamp(tonumber(config.Smoothness) or SMOOTHNESS, 0.001, 1)
+                    end
+                    if config.FovRadius ~= nil then FOV_RADIUS = config.FovRadius end
+                    if config.WallCheck ~= nil then WallCheckEnabled = config.WallCheck end
+                    if config.AimBindKind == "Mouse" and type(config.AimBindValue) == "string" then
+                        local mouseType = Enum.UserInputType[config.AimBindValue]
+                        if mouseType and MOUSE_BIND_NAMES[mouseType] then
+                            AIM_BIND = { Kind = "Mouse", Value = mouseType }
+                        end
+                    elseif type(config.AimKey) == "string" then
+                        if config.AimKey == "Mouse1" then
+                            AIM_BIND = { Kind = "Mouse", Value = Enum.UserInputType.MouseButton1 }
+                        elseif config.AimKey == "Mouse2" then
+                            AIM_BIND = { Kind = "Mouse", Value = Enum.UserInputType.MouseButton2 }
+                        elseif config.AimKey == "Mouse3" then
+                            AIM_BIND = { Kind = "Mouse", Value = Enum.UserInputType.MouseButton3 }
+                        else
+                            local loadedKey = Enum.KeyCode[config.AimKey]
+                            if loadedKey and loadedKey ~= Enum.KeyCode.Unknown then
+                                AIM_BIND = { Kind = "Key", Value = loadedKey }
+                            end
+                        end
+                    end
+                    if config.AimMode == "Toggle" or config.AimMode == "Hold" then
+                        AIM_MODE = config.AimMode
+                    end
+                    if config.Whitelist ~= nil and type(config.Whitelist) == "table" then 
+                        WhitelistedPlayers = config.Whitelist 
+                    end
+                end
+            end
+        end
+    end
+
+    LoadConfig()
+
+    ----------------------------------------------------------------
+    -- 🟢 DRAWING API (FOV RAD)
+    ----------------------------------------------------------------
+    local fovDrawing = Drawing.new("Circle")
+    fovDrawing.Visible = true
+    fovDrawing.Color = Color3.fromRGB(255, 255, 255)
+    fovDrawing.Thickness = 1
+    fovDrawing.NumSides = 64
+    fovDrawing.Radius = FOV_RADIUS
+    fovDrawing.Filled = false
+    fovDrawing.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    local crossHairHorizontal = Drawing.new("Line")
+    crossHairHorizontal.Visible = false
+    crossHairHorizontal.Color = Color3.fromRGB(255, 0, 0)
+    crossHairHorizontal.Thickness = 2
+
+    local crossHairVertical = Drawing.new("Line")
+    crossHairVertical.Visible = false
+    crossHairVertical.Color = Color3.fromRGB(255, 0, 0)
+    crossHairVertical.Thickness = 2
+
+    local function hideCrosshair()
+        crossHairHorizontal.Visible = false
+        crossHairVertical.Visible = false
+    end
+
+    local function showCrosshair(screenPos)
+        local size = 8
+        crossHairHorizontal.From = Vector2.new(screenPos.X - size, screenPos.Y)
+        crossHairHorizontal.To = Vector2.new(screenPos.X + size, screenPos.Y)
+        crossHairHorizontal.Visible = true
+        crossHairVertical.From = Vector2.new(screenPos.X, screenPos.Y - size)
+        crossHairVertical.To = Vector2.new(screenPos.X, screenPos.Y + size)
+        crossHairVertical.Visible = true
+    end
+
+    ----------------------------------------------------------------
+    -- 🧱 WALL CHECK FUNCTION 
+    ----------------------------------------------------------------
+    local function isPlayerVisible(targetChar, targetPart)
+        if not WallCheckEnabled then return true end 
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return false end
+        
+        local origin = Camera.CFrame.Position
+        local destination = targetPart.Position
+        local direction = destination - origin
+        
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, targetChar}
+        raycastParams.IgnoreWater = true
+        
+        local raycastResult = workspace:Raycast(origin, direction, raycastParams)
+        
+        if raycastResult then
+            return false -- มีสิ่งกีดขวาง/กำแพง บังอยู่
+        end
+        return true
+    end
+
+    ----------------------------------------------------------------
+    -- 🎯 AIMBOT TARGETING (FOV คงที่กลางจอ)
+    ----------------------------------------------------------------
+    local function getClosestTargetInFov()
+        local viewport = Camera.ViewportSize
+        local screenCenter = Vector2.new(viewport.X / 2, viewport.Y / 2)
+        local closestPart = nil
+        local shortestDist = FOV_RADIUS
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and not table.find(WhitelistedPlayers, player.Name) then
+                local char = player.Character
+                if char then
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    local head = char:FindFirstChild("Head")
+                    if humanoid and humanoid.Health > 0 and head then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                        if onScreen then
+                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                            if dist <= shortestDist and isPlayerVisible(char, head) then
+                                shortestDist = dist
+                                closestPart = head
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        return closestPart
+    end
+
+    ----------------------------------------------------------------
+    -- 🛠️ MODERN UI GENERATION
+    ----------------------------------------------------------------
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "ModernAimbotGui"
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    ScreenGui.ResetOnSpawn = false
+
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 550, 0, 380)
+    MainFrame.Position = UDim2.new(0.5, -275, 0.5, -190)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 20)
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+    MainFrame.Parent = ScreenGui
+    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+    Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(35, 35, 40)
+
+    local TopBar = Instance.new("Frame")
+    TopBar.Size = UDim2.new(1, 0, 0, 40)
+    TopBar.BackgroundColor3 = Color3.fromRGB(22, 22, 25)
+    TopBar.Parent = MainFrame
+    Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
+    
+    local Cover = Instance.new("Frame")
+    Cover.Size = UDim2.new(1, 0, 0, 10)
+    Cover.Position = UDim2.new(0, 0, 1, -10)
+    Cover.BackgroundColor3 = Color3.fromRGB(22, 22, 25)
+    Cover.BorderSizePixel = 0
+    Cover.Parent = TopBar
+
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(0, 250, 1, 0)
+    Title.Position = UDim2.new(0, 15, 0, 0)
+    Title.BackgroundTransparency = 1
+    Title.Text = "Project Tor Tae"
+    Title.TextColor3 = Color3.fromRGB(255, 65, 65) 
+    Title.Font = Enum.Font.SourceSansBold
+    Title.TextSize = 16
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Parent = TopBar
+
+    local ExitButton = Instance.new("TextButton")
+    ExitButton.Size = UDim2.new(0, 30, 0, 30)
+    ExitButton.Position = UDim2.new(1, -35, 0.5, -15)
+    ExitButton.BackgroundTransparency = 1
+    ExitButton.Text = "✕"
+    ExitButton.TextColor3 = Color3.fromRGB(150, 150, 150)
+    ExitButton.Font = Enum.Font.SourceSansBold
+    ExitButton.TextSize = 18
+    ExitButton.Parent = TopBar
+
+    ExitButton.MouseEnter:Connect(function() ExitButton.TextColor3 = Color3.fromRGB(255, 60, 60) end)
+    ExitButton.MouseLeave:Connect(function() ExitButton.TextColor3 = Color3.fromRGB(150, 150, 150) end)
+
+    local SideBar = Instance.new("Frame")
+    SideBar.Size = UDim2.new(0, 160, 1, -40)
+    SideBar.Position = UDim2.new(0, 0, 0, 40)
+    SideBar.BackgroundColor3 = Color3.fromRGB(22, 22, 25)
+    SideBar.BorderSizePixel = 0
+    SideBar.Parent = MainFrame
+
+    local SideList = Instance.new("UIListLayout")
+    SideList.Parent = SideBar
+    SideList.Padding = UDim.new(0, 2)
+
+    local Tabs = {}
+
+    local function createMenuTab(name, id)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 0, 35)
+        btn.BackgroundTransparency = 1
+        btn.Text = "   " .. name
+        btn.TextColor3 = (id == "Combat") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(140, 140, 145)
+        btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 13
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = SideBar
+
+        local page = Instance.new("ScrollingFrame")
+        page.Size = UDim2.new(1, -175, 1, -55)
+        page.Position = UDim2.new(0, 170, 0, 50)
+        page.BackgroundTransparency = 1
+        page.BorderSizePixel = 0
+        page.CanvasSize = UDim2.new(0, 0, 0, 600)
+        page.ScrollBarThickness = 4
+        page.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 65)
+        page.Visible = (id == "Combat")
+        page.Parent = MainFrame
+
+        local pageList = Instance.new("UIListLayout")
+        pageList.Parent = page
+        pageList.Padding = UDim.new(0, 8)
+
+        Tabs[id] = {Button = btn, Page = page}
+
+        btn.MouseButton1Click:Connect(function()
+            for tId, tabData in pairs(Tabs) do
+                if tId == id then
+                    tabData.Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    tabData.Page.Visible = true
+                else
+                    tabData.Button.TextColor3 = Color3.fromRGB(140, 140, 145)
+                    tabData.Page.Visible = false
+                end
+            end
+        end)
+
+        return page
+    end
+
+    local CombatPage = createMenuTab("⚔  COMBAT", "Combat")
+    local ESPPage = createMenuTab("👁  ESP", "ESP")
+    local ConfigPage = createMenuTab("⚙  CONFIGS", "Configs")
+
+    local function createRowFrame(parent, height)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -5, 0, height)
+        frame.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+        frame.Parent = parent
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+        local str = Instance.new("UIStroke", frame)
+        str.Color = Color3.fromRGB(40, 40, 45)
+        str.Thickness = 0.8
+        return frame
+    end
+
+    -- ================================================================
+    -- 🧱 COMBAT TAB ELEMENTS
+    -- ================================================================
+    local SectionTitle = Instance.new("TextLabel")
+    SectionTitle.Size = UDim2.new(1, 0, 0, 20)
+    SectionTitle.BackgroundTransparency = 1
+    SectionTitle.Text = "GUN / AIMBOT CONFIG"
+    SectionTitle.TextColor3 = Color3.fromRGB(160, 160, 165)
+    SectionTitle.Font = Enum.Font.SourceSansBold
+    SectionTitle.TextSize = 12
+    SectionTitle.TextXAlignment = Enum.TextXAlignment.Left
+    SectionTitle.Parent = CombatPage
+
+    local rowAimbot = createRowFrame(CombatPage, 38)
+    local lblAimbot = Instance.new("TextLabel")
+    lblAimbot.Size = UDim2.new(0, 200, 1, 0)
+    lblAimbot.Position = UDim2.new(0, 12, 0, 0)
+    lblAimbot.BackgroundTransparency = 1
+    lblAimbot.Text = "เปิดใช้งาน Aimbot (Status)"
+    lblAimbot.TextColor3 = Color3.fromRGB(210, 210, 215)
+    lblAimbot.Font = Enum.Font.SourceSans
+    lblAimbot.TextSize = 14
+    lblAimbot.TextXAlignment = Enum.TextXAlignment.Left
+    lblAimbot.Parent = rowAimbot
+
+    local btnAimbotToggle = Instance.new("TextButton")
+    btnAimbotToggle.Size = UDim2.new(0, 65, 0, 24)
+    btnAimbotToggle.Position = UDim2.new(1, -77, 0.5, -12)
+    btnAimbotToggle.BackgroundColor3 = isAimbotEnabled and Color3.fromRGB(55, 55, 60) or Color3.fromRGB(35, 35, 38)
+    btnAimbotToggle.Text = isAimbotEnabled and "ON" or "OFF"
+    btnAimbotToggle.TextColor3 = isAimbotEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(200, 60, 60)
+    btnAimbotToggle.Font = Enum.Font.SourceSansBold
+    btnAimbotToggle.TextSize = 13
+    btnAimbotToggle.Parent = rowAimbot
+    Instance.new("UICorner", btnAimbotToggle).CornerRadius = UDim.new(0, 4)
+
+    local rowAimKey = createRowFrame(CombatPage, 38)
+    local lblAimKey = Instance.new("TextLabel")
+    lblAimKey.Size = UDim2.new(0, 200, 1, 0)
+    lblAimKey.Position = UDim2.new(0, 12, 0, 0)
+    lblAimKey.BackgroundTransparency = 1
+    lblAimKey.Text = "ปุ่มเปิดใช้งาน Aimbot (Key Bind)"
+    lblAimKey.TextColor3 = Color3.fromRGB(210, 210, 215)
+    lblAimKey.Font = Enum.Font.SourceSans
+    lblAimKey.TextSize = 14
+    lblAimKey.TextXAlignment = Enum.TextXAlignment.Left
+    lblAimKey.Parent = rowAimKey
+
+    local btnAimKey = Instance.new("TextButton")
+    btnAimKey.Size = UDim2.new(0, 85, 0, 24)
+    btnAimKey.Position = UDim2.new(1, -97, 0.5, -12)
+    btnAimKey.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    btnAimKey.Text = getAimBindName()
+    btnAimKey.TextColor3 = Color3.fromRGB(255, 200, 0)
+    btnAimKey.Font = Enum.Font.SourceSansBold
+    btnAimKey.TextSize = 12
+    btnAimKey.Parent = rowAimKey
+    Instance.new("UICorner", btnAimKey).CornerRadius = UDim.new(0, 4)
+
+    local rowAimMode = createRowFrame(CombatPage, 38)
+    local lblAimMode = Instance.new("TextLabel")
+    lblAimMode.Size = UDim2.new(0, 200, 1, 0)
+    lblAimMode.Position = UDim2.new(0, 12, 0, 0)
+    lblAimMode.BackgroundTransparency = 1
+    lblAimMode.Text = "รูปแบบการเปิดใช้งาน (Aim Mode)"
+    lblAimMode.TextColor3 = Color3.fromRGB(210, 210, 215)
+    lblAimMode.Font = Enum.Font.SourceSans
+    lblAimMode.TextSize = 14
+    lblAimMode.TextXAlignment = Enum.TextXAlignment.Left
+    lblAimMode.Parent = rowAimMode
+
+    local btnAimMode = Instance.new("TextButton")
+    btnAimMode.Size = UDim2.new(0, 85, 0, 24)
+    btnAimMode.Position = UDim2.new(1, -97, 0.5, -12)
+    btnAimMode.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    btnAimMode.Text = AIM_MODE
+    btnAimMode.TextColor3 = Color3.fromRGB(0, 180, 255)
+    btnAimMode.Font = Enum.Font.SourceSansBold
+    btnAimMode.TextSize = 12
+    btnAimMode.Parent = rowAimMode
+    Instance.new("UICorner", btnAimMode).CornerRadius = UDim.new(0, 4)
+
+    local rowWall = createRowFrame(CombatPage, 38)
+    local lblWall = Instance.new("TextLabel")
+    lblWall.Size = UDim2.new(0, 200, 1, 0)
+    lblWall.Position = UDim2.new(0, 12, 0, 0)
+    lblWall.BackgroundTransparency = 1
+    lblWall.Text = "ตรวจสอบกำแพง (Wall Check)"
+    lblWall.TextColor3 = Color3.fromRGB(210, 210, 215)
+    lblWall.Font = Enum.Font.SourceSans
+    lblWall.TextSize = 14
+    lblWall.TextXAlignment = Enum.TextXAlignment.Left
+    lblWall.Parent = rowWall
+
+    local btnWallToggle = Instance.new("TextButton")
+    btnWallToggle.Size = UDim2.new(0, 65, 0, 24)
+    btnWallToggle.Position = UDim2.new(1, -77, 0.5, -12)
+    btnWallToggle.BackgroundColor3 = WallCheckEnabled and Color3.fromRGB(55, 55, 60) or Color3.fromRGB(35, 35, 38)
+    btnWallToggle.Text = WallCheckEnabled and "เปิดอยู่" or "ปิดอยู่"
+    btnWallToggle.TextColor3 = WallCheckEnabled and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(150, 150, 150)
+    btnWallToggle.Font = Enum.Font.SourceSansBold
+    btnWallToggle.TextSize = 12
+    btnWallToggle.Parent = rowWall
+    Instance.new("UICorner", btnWallToggle).CornerRadius = UDim.new(0, 4)
+
+    local rowFov = createRowFrame(CombatPage, 45)
+    local lblFov = Instance.new("TextLabel")
+    lblFov.Size = UDim2.new(0, 200, 0, 20)
+    lblFov.Position = UDim2.new(0, 12, 0, 4)
+    lblFov.BackgroundTransparency = 1
+    lblFov.Text = "ระยะล็อกเป้า (FOV Radius): " .. FOV_RADIUS
+    lblFov.TextColor3 = Color3.fromRGB(210, 210, 215)
+    lblFov.Font = Enum.Font.SourceSans
+    lblFov.TextSize = 14
+    lblFov.TextXAlignment = Enum.TextXAlignment.Left
+    lblFov.Parent = rowFov
+
+    local FovBg = Instance.new("Frame")
+    FovBg.Size = UDim2.new(1, -24, 0, 5)
+    FovBg.Position = UDim2.new(0, 12, 0, 30)
+    FovBg.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    FovBg.BorderSizePixel = 0
+    FovBg.Parent = rowFov
+
+    local FovFill = Instance.new("Frame")
+    FovFill.Size = UDim2.new(math.clamp(((FOV_RADIUS - 10)/400), 0, 1), 0, 1, 0)
+    FovFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    FovFill.BorderSizePixel = 0
+    FovFill.Parent = FovBg
+
+    local FovBtn = Instance.new("TextButton")
+    FovBtn.Size = UDim2.new(0, 12, 0, 12)
+    FovBtn.Position = UDim2.new(math.clamp(((FOV_RADIUS - 10)/400), 0, 1), -6, 0.5, -6)
+    FovBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    FovBtn.Text = ""
+    FovBtn.Parent = FovBg
+    Instance.new("UICorner", FovBtn).CornerRadius = UDim.new(1, 0)
+
+    local rowSmooth = createRowFrame(CombatPage, 45)
+    local lblSmooth = Instance.new("TextLabel")
+    lblSmooth.Size = UDim2.new(0, 200, 0, 20)
+    lblSmooth.Position = UDim2.new(0, 12, 0, 4)
+    lblSmooth.BackgroundTransparency = 1
+    lblSmooth.Text = "ความเนียน (Smoothness): " .. string.format("%.3f", SMOOTHNESS)
+    lblSmooth.TextColor3 = Color3.fromRGB(210, 210, 215)
+    lblSmooth.Font = Enum.Font.SourceSans
+    lblSmooth.TextSize = 14
+    lblSmooth.TextXAlignment = Enum.TextXAlignment.Left
+    lblSmooth.Parent = rowSmooth
+
+    local SmoothBg = Instance.new("Frame")
+    SmoothBg.Size = UDim2.new(1, -24, 0, 5)
+    SmoothBg.Position = UDim2.new(0, 12, 0, 30)
+    SmoothBg.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    SmoothBg.BorderSizePixel = 0
+    SmoothBg.Parent = rowSmooth
+
+    local SmoothFill = Instance.new("Frame")
+    SmoothFill.Size = UDim2.new(math.clamp(SMOOTHNESS, 0, 1), 0, 1, 0)
+    SmoothFill.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+    SmoothFill.BorderSizePixel = 0
+    SmoothFill.Parent = SmoothBg
+
+    local SmoothBtn = Instance.new("TextButton")
+    SmoothBtn.Size = UDim2.new(0, 12, 0, 12)
+    SmoothBtn.Position = UDim2.new(math.clamp(SMOOTHNESS, 0, 1), -6, 0.5, -6)
+    SmoothBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+    SmoothBtn.Text = ""
+    SmoothBtn.Parent = SmoothBg
+    Instance.new("UICorner", SmoothBtn).CornerRadius = UDim.new(1, 0)
+
+    local rowSave = createRowFrame(CombatPage, 38)
+    local btnSave = Instance.new("TextButton")
+    btnSave.Size = UDim2.new(1, 0, 1, 0)
+    btnSave.BackgroundTransparency = 1
+    btnSave.Text = "💾 บันทึกการตั้งค่าลงเครื่อง (Save Config)"
+    btnSave.TextColor3 = Color3.fromRGB(180, 130, 255)
+    btnSave.Font = Enum.Font.SourceSansBold
+    btnSave.TextSize = 14
+    btnSave.Parent = rowSave
+
+    local WhitelistTitle = Instance.new("TextLabel")
+    WhitelistTitle.Size = UDim2.new(1, 0, 0, 20)
+    WhitelistTitle.BackgroundTransparency = 1
+    WhitelistTitle.Text = "ยกเว้นผู้เล่น (Friend / Whitelist)"
+    WhitelistTitle.TextColor3 = Color3.fromRGB(160, 160, 165)
+    WhitelistTitle.Font = Enum.Font.SourceSansBold
+    WhitelistTitle.TextSize = 12
+    WhitelistTitle.TextXAlignment = Enum.TextXAlignment.Left
+    WhitelistTitle.Parent = CombatPage
+
+    local WhitelistFrame = Instance.new("Frame")
+    WhitelistFrame.Size = UDim2.new(1, -5, 0, 120)
+    WhitelistFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 26)
+    WhitelistFrame.Parent = CombatPage
+    Instance.new("UICorner", WhitelistFrame).CornerRadius = UDim.new(0, 6)
+    Instance.new("UIStroke", WhitelistFrame).Color = Color3.fromRGB(38, 38, 42)
+
+    local PlayerScroll = Instance.new("ScrollingFrame")
+    PlayerScroll.Size = UDim2.new(1, -10, 1, -10)
+    PlayerScroll.Position = UDim2.new(0, 5, 0, 5)
+    PlayerScroll.BackgroundTransparency = 1
+    PlayerScroll.BorderSizePixel = 0
+    PlayerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    PlayerScroll.ScrollBarThickness = 4
+    PlayerScroll.Parent = WhitelistFrame
+
+    local PlayerListLayout = Instance.new("UIListLayout")
+    PlayerListLayout.Parent = PlayerScroll
+    PlayerListLayout.Padding = UDim.new(0, 4)
+
+    -- ================================================================
+    -- 👁️ ESP TAB ELEMENTS (เพิ่มปุ่มเปิดปิดระบบมองไอเทมที่นี่)
+    -- ================================================================
+    local EspSectionTitle = Instance.new("TextLabel")
+    EspSectionTitle.Size = UDim2.new(1, 0, 0, 20)
+    EspSectionTitle.BackgroundTransparency = 1
+    EspSectionTitle.Text = "VISUAL / ESP SETTINGS"
+    EspSectionTitle.TextColor3 = Color3.fromRGB(160, 160, 165)
+    EspSectionTitle.Font = Enum.Font.SourceSansBold
+    EspSectionTitle.TextSize = 12
+    EspSectionTitle.TextXAlignment = Enum.TextXAlignment.Left
+    EspSectionTitle.Parent = ESPPage
+
+    -- 1. ปุ่มเปิดปิด Player ESP
+    local rowPlayerESP = createRowFrame(ESPPage, 38)
+    local lblPlayerESP = Instance.new("TextLabel")
+    lblPlayerESP.Size = UDim2.new(0, 200, 1, 0)
+    lblPlayerESP.Position = UDim2.new(0, 12, 0, 0)
+    lblPlayerESP.BackgroundTransparency = 1
+    lblPlayerESP.Text = "เปิดระบบมองทะลุผู้เล่น (Player ESP)"
+    lblPlayerESP.TextColor3 = Color3.fromRGB(210, 210, 215)
+    lblPlayerESP.Font = Enum.Font.SourceSans
+    lblPlayerESP.TextSize = 14
+    lblPlayerESP.TextXAlignment = Enum.TextXAlignment.Left
+    lblPlayerESP.Parent = rowPlayerESP
+
+    local btnPlayerESPToggle = Instance.new("TextButton")
+    btnPlayerESPToggle.Size = UDim2.new(0, 65, 0, 24)
+    btnPlayerESPToggle.Position = UDim2.new(1, -77, 0.5, -12)
+    btnPlayerESPToggle.BackgroundColor3 = PlayerESP_Enabled and Color3.fromRGB(55, 55, 60) or Color3.fromRGB(35, 35, 38)
+    btnPlayerESPToggle.Text = PlayerESP_Enabled and "ON" or "OFF"
+    btnPlayerESPToggle.TextColor3 = PlayerESP_Enabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(200, 60, 60)
+    btnPlayerESPToggle.Font = Enum.Font.SourceSansBold
+    btnPlayerESPToggle.TextSize = 13
+    btnPlayerESPToggle.Parent = rowPlayerESP
+    Instance.new("UICorner", btnPlayerESPToggle).CornerRadius = UDim.new(0, 4)
+
+    -- 2. ปุ่มเปิดปิด Item ESP (ปุ่มใหม่ที่ขอเพิ่ม)
+    local rowItemESP = createRowFrame(ESPPage, 38)
+    local lblItemESP = Instance.new("TextLabel")
+    lblItemESP.Size = UDim2.new(0, 200, 1, 0)
+    lblItemESP.Position = UDim2.new(0, 12, 0, 0)
+    lblItemESP.BackgroundTransparency = 1
+    lblItemESP.Text = "เปิดระบบมองของติดตัว (Item ESP)"
+    lblItemESP.TextColor3 = Color3.fromRGB(210, 210, 215)
+    lblItemESP.Font = Enum.Font.SourceSans
+    lblItemESP.TextSize = 14
+    lblItemESP.TextXAlignment = Enum.TextXAlignment.Left
+    lblItemESP.Parent = rowItemESP
+
+    local btnItemESPToggle = Instance.new("TextButton")
+    btnItemESPToggle.Size = UDim2.new(0, 65, 0, 24)
+    btnItemESPToggle.Position = UDim2.new(1, -77, 0.5, -12)
+    btnItemESPToggle.BackgroundColor3 = ItemESP_Enabled and Color3.fromRGB(55, 55, 60) or Color3.fromRGB(35, 35, 38)
+    btnItemESPToggle.Text = ItemESP_Enabled and "ON" or "OFF"
+    btnItemESPToggle.TextColor3 = ItemESP_Enabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(200, 60, 60)
+    btnItemESPToggle.Font = Enum.Font.SourceSansBold
+    btnItemESPToggle.TextSize = 13
+    btnItemESPToggle.Parent = rowItemESP
+    Instance.new("UICorner", btnItemESPToggle).CornerRadius = UDim.new(0, 4)
+
+    local function addBottomInfo(parent)
+        local BottomInfo = Instance.new("TextLabel")
+        BottomInfo.Size = UDim2.new(1, 0, 0, 20)
+        BottomInfo.BackgroundTransparency = 1
+        BottomInfo.Text = "ปุ่มเมนู: [Insert]  |  ตั้งค่า Aim Key ได้ในหน้า Combat"
+        BottomInfo.TextColor3 = Color3.fromRGB(100, 100, 105)
+        BottomInfo.Font = Enum.Font.SourceSans
+        BottomInfo.TextSize = 12
+        BottomInfo.Parent = parent
+    end
+    addBottomInfo(CombatPage)
+    addBottomInfo(ESPPage)
+
+    ----------------------------------------------------------------
+    -- 🔄 LOGIC UI & INTERACTION HANDLING
+    ----------------------------------------------------------------
+    local draggingFov = false
+    local draggingSmooth = false
+
+    FovBg.Active = true
+    SmoothBg.Active = true
+
+    local function beginFovDrag() draggingFov = true end
+    local function beginSmoothDrag() draggingSmooth = true end
+
+    FovBtn.MouseButton1Down:Connect(beginFovDrag)
+    SmoothBtn.MouseButton1Down:Connect(beginSmoothDrag)
+    FovBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then beginFovDrag() end
+    end)
+    SmoothBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then beginSmoothDrag() end
+    end)
+
+    local inputEndedConn = UserInputService.InputEnded:Connect(function(input) 
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then 
+            draggingFov = false 
+            draggingSmooth = false 
+        end 
+    end)
+    table.insert(GlobalConnections, inputEndedConn)
+
+    local inputChangedConn = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+
+        if draggingFov then
+            local absPos = FovBg.AbsolutePosition.X
+            local absSize = math.max(FovBg.AbsoluteSize.X, 1)
+            local pct = math.clamp((input.Position.X - absPos) / absSize, 0, 1)
+            FOV_RADIUS = math.floor(10 + pct * 400)
+            fovDrawing.Radius = FOV_RADIUS
+            lblFov.Text = "ระยะล็อกเป้า (FOV Radius): " .. FOV_RADIUS
+            FovFill.Size = UDim2.new(pct, 0, 1, 0)
+            FovBtn.Position = UDim2.new(pct, -6, 0.5, -6)
+        end
+
+        if draggingSmooth then
+            local absPos = SmoothBg.AbsolutePosition.X
+            local absSize = math.max(SmoothBg.AbsoluteSize.X, 1)
+            local pct = math.clamp((input.Position.X - absPos) / absSize, 0, 1)
+            SMOOTHNESS = math.floor((0.001 + pct * 0.999) * 1000 + 0.5) / 1000
+            lblSmooth.Text = "ความเนียน (Smoothness): " .. string.format("%.3f", SMOOTHNESS)
+            SmoothFill.Size = UDim2.new(pct, 0, 1, 0)
+            SmoothBtn.Position = UDim2.new(pct, -6, 0.5, -6)
+        end
+    end)
+    table.insert(GlobalConnections, inputChangedConn)
+
+    local function UpdatePlayerListUI()
+        for _, child in pairs(PlayerScroll:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+        local count = 0
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                count = count + 1
+                local isChecked = table.find(WhitelistedPlayers, p.Name)
+                local pRow = Instance.new("Frame")
+                pRow.Size = UDim2.new(1, -6, 0, 30)
+                pRow.BackgroundColor3 = Color3.fromRGB(32, 32, 36)
+                pRow.Parent = PlayerScroll
+                Instance.new("UICorner", pRow).CornerRadius = UDim.new(0, 4)
+
+                local pName = Instance.new("TextLabel")
+                pName.Size = UDim2.new(0, 240, 1, 0)
+                pName.Position = UDim2.new(0, 10, 0, 0)
+                pName.BackgroundTransparency = 1
+                pName.Text = p.DisplayName .. " (@" .. p.Name .. ")"
+                pName.TextColor3 = Color3.fromRGB(220, 220, 220)
+                pName.Font = Enum.Font.SourceSans
+                pName.TextSize = 13
+                pName.TextXAlignment = Enum.TextXAlignment.Left
+                pName.Parent = pRow
+
+                local checkBtn = Instance.new("TextButton")
+                checkBtn.Size = UDim2.new(0, 50, 0, 20)
+                checkBtn.Position = UDim2.new(1, -60, 0.5, -10)
+                checkBtn.BackgroundColor3 = isChecked and Color3.fromRGB(200, 60, 60) or Color3.fromRGB(45, 45, 50)
+                checkBtn.Text = isChecked and "Ignored" or "Lock"
+                checkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                checkBtn.Font = Enum.Font.SourceSansBold
+                checkBtn.TextSize = 11
+                checkBtn.Parent = pRow
+                Instance.new("UICorner", checkBtn).CornerRadius = UDim.new(0, 3)
+
+                checkBtn.MouseButton1Click:Connect(function()
+                    local index = table.find(WhitelistedPlayers, p.Name)
+                    if index then table.remove(WhitelistedPlayers, index) else table.insert(WhitelistedPlayers, p.Name) end
+                    UpdatePlayerListUI() 
+                end)
+            end
+        end
+        PlayerScroll.CanvasSize = UDim2.new(0, 0, 0, count * 34)
+    end
+
+    UpdatePlayerListUI()
+    table.insert(GlobalConnections, Players.PlayerAdded:Connect(UpdatePlayerListUI))
+    table.insert(GlobalConnections, Players.PlayerRemoving:Connect(UpdatePlayerListUI))
+
+    -- เริ่มทำงาน ESP ตั้งต้นตามสถานะตัวแปร
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            if PlayerESP_Enabled then createBillboardForPlayer(p) end
+            if ItemESP_Enabled then createItemBillboardForPlayer(p) end
+        end
+    end
+
+    -- Event ควบคุมการเปิด-ปิด Player ESP
+    btnPlayerESPToggle.MouseButton1Click:Connect(function()
+        PlayerESP_Enabled = not PlayerESP_Enabled
+        if PlayerESP_Enabled then
+            btnPlayerESPToggle.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+            btnPlayerESPToggle.Text = "ON"
+            btnPlayerESPToggle.TextColor3 = Color3.fromRGB(0, 255, 140)
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer then createBillboardForPlayer(p) end
+            end
+        else
+            btnPlayerESPToggle.BackgroundColor3 = Color3.fromRGB(35, 35, 38)
+            btnPlayerESPToggle.Text = "OFF"
+            btnPlayerESPToggle.TextColor3 = Color3.fromRGB(200, 60, 60)
+            for _, p in ipairs(Players:GetPlayers()) do removeESPForPlayer(p) end
+        end
+    end)
+
+    -- Event ควบคุมการเปิด-ปิด Item ESP (ที่คุณสั่งเพิ่ม)
+    btnItemESPToggle.MouseButton1Click:Connect(function()
+        ItemESP_Enabled = not ItemESP_Enabled
+        if ItemESP_Enabled then
+            btnItemESPToggle.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+            btnItemESPToggle.Text = "ON"
+            btnItemESPToggle.TextColor3 = Color3.fromRGB(0, 255, 140)
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer then createItemBillboardForPlayer(p) end
+            end
+        else
+            btnItemESPToggle.BackgroundColor3 = Color3.fromRGB(35, 35, 38)
+            btnItemESPToggle.Text = "OFF"
+            btnItemESPToggle.TextColor3 = Color3.fromRGB(200, 60, 60)
+            for _, p in ipairs(Players:GetPlayers()) do removeItemESPForPlayer(p) end
+        end
+    end)
+
+    local function SetAimbotState(enabled)
+        isAimbotEnabled = enabled
+        if isAimbotEnabled then
+            btnAimbotToggle.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+            btnAimbotToggle.Text = "ON"
+            btnAimbotToggle.TextColor3 = Color3.fromRGB(0, 255, 140)
+            if ScriptRunning then fovDrawing.Visible = true end
+        else
+            btnAimbotToggle.BackgroundColor3 = Color3.fromRGB(35, 35, 38)
+            btnAimbotToggle.Text = "OFF"
+            btnAimbotToggle.TextColor3 = Color3.fromRGB(200, 60, 60)
+            fovDrawing.Visible = false
+            hideCrosshair()
+        end
+    end
+
+    local function ToggleAimbotState()
+        SetAimbotState(not isAimbotEnabled)
+    end
+
+    btnAimbotToggle.MouseButton1Click:Connect(ToggleAimbotState)
+
+    local waitingForAimKey = false
+    local ignoreBindUntil = 0
+
+    local function finishAimBindCapture()
+        btnAimKey.Text = getAimBindName()
+        btnAimKey.TextColor3 = Color3.fromRGB(255, 200, 0)
+        waitingForAimKey = false
+    end
+
+    btnAimKey.MouseButton1Click:Connect(function()
+        waitingForAimKey = true
+        -- ข้ามคลิกที่กดปุ่มตั้งค่าเอง ไม่ให้ผูกเป็น Mouse1 ทันที
+        ignoreBindUntil = os.clock() + 0.2
+        btnAimKey.Text = "กดปุ่ม..."
+        btnAimKey.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+
+    btnAimMode.MouseButton1Click:Connect(function()
+        AIM_MODE = AIM_MODE == "Toggle" and "Hold" or "Toggle"
+        btnAimMode.Text = AIM_MODE
+        if AIM_MODE == "Hold" then
+            SetAimbotState(false)
+        end
+    end)
+
+    if AIM_MODE == "Hold" then
+        SetAimbotState(false)
+    end
+
+    btnWallToggle.MouseButton1Click:Connect(function()
+        WallCheckEnabled = not WallCheckEnabled
+        if WallCheckEnabled then
+            btnWallToggle.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+            btnWallToggle.Text = "เปิดอยู่"
+            btnWallToggle.TextColor3 = Color3.fromRGB(0, 180, 255)
+        else
+            btnWallToggle.BackgroundColor3 = Color3.fromRGB(35, 35, 38)
+            btnWallToggle.Text = "ปิดอยู่"
+            btnWallToggle.TextColor3 = Color3.fromRGB(150, 150, 150)
+        end
+    end)
+
+    btnSave.MouseButton1Click:Connect(function()
+        local done = SaveConfig()
+        if done then
+            btnSave.Text = "✔ บันทึกการตั้งค่าเสร็จสิ้น!"
+            task.wait(1)
+            btnSave.Text = "💾 บันทึกการตั้งค่าลงเครื่อง (Save Config)"
+        else
+            btnSave.Text = "❌ อุปกรณ์ของคุณไม่รองรับ writefile"
+            task.wait(1.5)
+            btnSave.Text = "💾 บันทึกการตั้งค่าลงเครื่อง (Save Config)"
+        end
+    end)
+
+    local inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+        if waitingForAimKey then
+            if os.clock() < ignoreBindUntil then
+                return
+            end
+
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                if input.KeyCode == Enum.KeyCode.Escape then
+                    finishAimBindCapture()
+                elseif input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode ~= TOGGLE_GUI_KEY then
+                    AIM_BIND = { Kind = "Key", Value = input.KeyCode }
+                    finishAimBindCapture()
+                end
+                return
+            end
+
+            if MOUSE_BIND_NAMES[input.UserInputType] then
+                AIM_BIND = { Kind = "Mouse", Value = input.UserInputType }
+                finishAimBindCapture()
+                return
+            end
+            return
+        end
+
+        if gameProcessedEvent then return end
+        if input.KeyCode == TOGGLE_GUI_KEY then
+            MainFrame.Visible = not MainFrame.Visible
+        elseif isAimBindInput(input) then
+            if AIM_MODE == "Toggle" then
+                ToggleAimbotState()
+            else
+                SetAimbotState(true)
+            end
+        end
+    end)
+    table.insert(GlobalConnections, inputBeganConn)
+
+    local aimKeyEndedConn = UserInputService.InputEnded:Connect(function(input)
+        if AIM_MODE == "Hold" and isAimBindInput(input) then
+            SetAimbotState(false)
+        end
+    end)
+    table.insert(GlobalConnections, aimKeyEndedConn)
+
+    -- จัดการการลบค่าออกเมื่อมีผู้เล่นออกจากเซิร์ฟเวอร์
+    table.insert(GlobalConnections, Players.PlayerRemoving:Connect(function(p)
+        removeESPForPlayer(p)
+        removeItemESPForPlayer(p)
+    end))
+    
+    table.insert(GlobalConnections, Players.PlayerAdded:Connect(function(p)
+        if p ~= LocalPlayer then
+            if PlayerESP_Enabled then createBillboardForPlayer(p) end
+            if ItemESP_Enabled then createItemBillboardForPlayer(p) end
+        end
+    end))
+
+    ----------------------------------------------------------------
+    -- 🔁 MAIN AIMBOT LOOP (รันหลังกล้องเกม เพื่อลดการสั่น)
+    ----------------------------------------------------------------
+    local AIMBOT_RENDER_NAME = "LegitAimbot_Camera"
+
+    local function isLocalInVehicle()
+        local char = LocalPlayer.Character
+        if not char then return false end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return false end
+        local seat = hum.SeatPart
+        return seat ~= nil and (seat:IsA("VehicleSeat") or seat:IsA("Seat"))
+    end
+
+    local function applySmoothLook(cam, aimPos, alpha)
+        local pos = cam.CFrame.Position
+        local toTarget = aimPos - pos
+        if toTarget.Magnitude < 0.05 then return end
+
+        -- Lerp เฉพาะทิศทางการมอง (ไม่ยุ่งตำแหน่งกล้อง) ลดอาการสั่นตอนรถขยับ
+        local currentLook = cam.CFrame.LookVector
+        local targetLook = toTarget.Unit
+        local blendedLook = currentLook:Lerp(targetLook, alpha)
+        if blendedLook.Magnitude < 1e-4 then return end
+        blendedLook = blendedLook.Unit
+
+        local up = Vector3.yAxis
+        if math.abs(blendedLook:Dot(up)) > 0.98 then
+            up = cam.CFrame.RightVector
+        end
+
+        cam.CFrame = CFrame.lookAt(pos, pos + blendedLook, up)
+    end
+
+    local function aimbotStep(deltaTime)
+        if not ScriptRunning then return end
+
+        Camera = workspace.CurrentCamera
+        if not Camera then return end
+
+        local viewport = Camera.ViewportSize
+        local screenCenter = Vector2.new(viewport.X / 2, viewport.Y / 2)
+
+        fovDrawing.Position = screenCenter
+        fovDrawing.Radius = FOV_RADIUS
+        fovDrawing.Visible = isAimbotEnabled
+
+        if not isAimbotEnabled then
+            hideCrosshair()
+            return
+        end
+
+        local targetPart = getClosestTargetInFov()
+        if targetPart then
+            local aimPos = targetPart.Position
+            local smooth = math.clamp(SMOOTHNESS, 0.001, 1)
+            local alpha = smooth >= 1 and 1 or 1 - math.pow(1 - smooth, deltaTime * 60)
+
+            -- ตอนอยู่บนรถกล้องเกมดึงกลับแรง ต้องตอบสนองเร็วขึ้นไม่งั้นจะสั่น
+            if isLocalInVehicle() then
+                alpha = math.clamp(math.max(alpha * 2.2, 0.35), 0.05, 1)
+            end
+
+            applySmoothLook(Camera, aimPos, alpha)
+
+            local screenPos, onScreen = Camera:WorldToViewportPoint(aimPos)
+            if onScreen then
+                showCrosshair(Vector2.new(screenPos.X, screenPos.Y))
+            else
+                hideCrosshair()
+            end
+        else
+            hideCrosshair()
+        end
+    end
+
+    pcall(function() RunService:UnbindFromRenderStep(AIMBOT_RENDER_NAME) end)
+    -- Last = รันหลังกล้องรถ/เกมทุกอย่าง ลดการแย่ง CFrame
+    RunService:BindToRenderStep(AIMBOT_RENDER_NAME, Enum.RenderPriority.Last.Value, aimbotStep)
+
+    ----------------------------------------------------------------
+    -- 🛑 Exit Script
+    ----------------------------------------------------------------
+    ExitButton.MouseButton1Click:Connect(function()
+        ScriptRunning = false
+        isAimbotEnabled = false
+        PlayerESP_Enabled = false
+        ItemESP_Enabled = false
+
+        pcall(function() RunService:UnbindFromRenderStep(AIMBOT_RENDER_NAME) end)
+        for _, conn in ipairs(GlobalConnections) do if conn.Connected then conn:Disconnect() end end
+        
+        fovDrawing.Visible = false
+        fovDrawing:Remove()
+        hideCrosshair()
+        crossHairHorizontal:Remove()
+        crossHairVertical:Remove()
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            removeESPForPlayer(p)
+            removeItemESPForPlayer(p)
+        end
+
+        ScreenGui:Destroy()
+    end)
+end
+
+-- รันสคริปต์หลัก
+if CORRECT_KEY == "1" then
+    task.spawn(StartAimbotScript)
+end
+end)
